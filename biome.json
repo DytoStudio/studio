@@ -1,0 +1,39 @@
+{
+    "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+    "assist": {
+        "actions": {
+            "source": {
+                "organizeImports": "on",
+                "useSortedAttributes": "on",
+                "useSortedKeys": "on",
+                "useSortedProperties": "on"
+            }
+        },
+        "enabled": true
+    },
+    "files": {
+        "includes": ["**", "!**/.git"]
+    },
+    "formatter": {
+        "enabled": true,
+        "indentStyle": "space",
+        "indentWidth": 4
+    },
+    "javascript": {
+        "formatter": {
+            "quoteStyle": "single",
+            "semicolons": "always"
+        }
+    },
+    "linter": {
+        "enabled": true,
+        "rules": {
+            "recommended": true
+        }
+    },
+    "vcs": {
+        "clientKind": "git",
+        "enabled": true,
+        "useIgnoreFile": true
+    }
+}

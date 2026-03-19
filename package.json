@@ -1,0 +1,15 @@
+{
+    "devDependencies": {
+        "@biomejs/biome": "^2.4.8"
+    },
+    "name": "@dytostudio/studio-monorepo",
+    "packageManager": "pnpm@10.30.3",
+    "private": true,
+    "scripts": {
+        "check": "biome check",
+        "format": "biome check --fix"
+    },
+    "workspaces": [
+        "packages/*"
+    ]
+}

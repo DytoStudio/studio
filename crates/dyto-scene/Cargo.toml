@@ -1,0 +1,27 @@
+[package]
+name = "dyto-scene"
+version = "0.0.0"
+edition = "2024"
+
+[features]
+web = []
+
+[dependencies]
+bevy = { version = "^0.18.1", default-features = false, features = [
+    "std",
+    "bevy_winit",
+    "bevy_render",
+    "bevy_core_pipeline",
+    "bevy_pbr",
+    "bevy_asset",
+    "bevy_mesh",
+    "bevy_window",
+    "bevy_color",
+    "bevy_image",
+    "bevy_log",
+    "webgpu",
+    "web",
+    "tonemapping_luts",
+    "png",
+    "zstd_rust",
+] }

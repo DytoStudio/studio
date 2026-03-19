@@ -1,0 +1,17 @@
+{
+    "author": "Dyto Studio Contributors",
+    "description": "Dyto scene renderer (Bevy WASM)",
+    "exports": {
+        ".": "./pkg/dyto_wasm.js"
+    },
+    "keywords": [],
+    "license": "proprietary",
+    "main": "./pkg/dyto_wasm.js",
+    "name": "@dytostudio/scene",
+    "packageManager": "pnpm@10.30.3",
+    "scripts": {
+        "build": "wasm-pack build ../../crates/dyto-wasm --target web --out-dir ../../packages/scene/pkg"
+    },
+    "type": "module",
+    "version": "1.0.0"
+}

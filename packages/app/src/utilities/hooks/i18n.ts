@@ -64,8 +64,10 @@ export const I18nContext = createContext<I18nContextValue>();
  */
 export const loadDictionary = async (locale: Locale): Promise<Dictionary> => {
     const dictionary = (
-        await Result.try<RawDictionary>(import(`../../i18n/${locale}.json`))
-    ).map((dictionary) => flatten(dictionary));
+        await Result.try<{ default: RawDictionary }>(
+            import(`../../i18n/${locale}.json`),
+        )
+    ).map((module) => flatten(module.default));
 
     if (dictionary.isErr()) {
         logger.error(

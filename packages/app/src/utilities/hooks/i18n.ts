@@ -24,7 +24,7 @@ const logger = Logger.new('i18n');
 /**
  * Supported locales in the application.
  */
-export const SupportedLocales = ['en-US', 'zh-CN'] as const;
+export const SupportedLocales = ['en-US', 'zh-CN', 'ja-JP'] as const;
 
 /**
  * Supported locales in the application.

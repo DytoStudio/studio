@@ -1,3 +1,4 @@
 {
-    "helloWorld": "Hello, world!"
+    "app.name": "Dyto Studio",
+    "editor.sidepanel.placeholder": "Empty"
 }

@@ -1,32 +1,44 @@
-import { type Component, createUniqueId, onMount } from 'solid-js';
-import { useI18n } from '../utilities/hooks/i18n';
+import type { Component } from 'solid-js';
+import { SupportedLocales, useI18n } from '../utilities/hooks/i18n';
+import { Scene } from './Scene';
 
 export const Editor: Component = () => {
     const i18n = useI18n();
-    const canvasId = createUniqueId();
-    let canvas: HTMLCanvasElement | undefined;
-
-    onMount(async () => {
-        const dytoScene = await import('@dytostudio/scene');
-        await dytoScene.default();
-        const scene = new dytoScene.DytoScene(`#${canvasId}`);
-        scene.run();
-    });
 
     return (
-        <div class="h-full w-full flex flex-col items-center justify-center gap-4">
-            <h1>{i18n.t('helloWorld')}</h1>
-            <button
-                onClick={() =>
-                    i18n.setLocale(
-                        i18n.locale() === 'en-US' ? 'zh-CN' : 'en-US',
-                    )
-                }
-                type="button"
-            >
-                change language
-            </button>
-            <canvas class="h-full w-full" id={canvasId} ref={canvas} />
+        <div class="h-full w-full flex flex-col overflow-hidden">
+            <div class="w-full shrink-0 h-12 bg-zinc-900 border-b border-zinc-700 flex items-center px-4 gap-4">
+                <h1 class="text-lg font-bold text-zinc-100">
+                    {i18n.t('app.name')}
+                </h1>
+                <button
+                    onClick={() => {
+                        const currentLocale = i18n.locale();
+                        const currentIndex = SupportedLocales.indexOf(currentLocale);
+                        const newIndex =
+                            (currentIndex + 1) % SupportedLocales.length;
+                        const newLocale = SupportedLocales[newIndex];
+                            
+                        i18n.setLocale(newLocale);
+                    }}
+                    type="button"
+                >
+                    change language
+                </button>
+            </div>
+            <div class="flex grow min-h-0 overflow-hidden">
+                <div class="shrink-0 w-md h-full bg-zinc-900 border-r border-zinc-700">
+                    <div class="p-4 text-sm text-zinc-500">
+                        {i18n.t('editor.sidepanel.placeholder')}
+                    </div>
+                </div>
+                <Scene
+                    class="w-full! h-full! min-w-0! min-h-0!"
+                    onSceneReady={(scene) => {
+                        console.log(scene, 2);
+                    }}
+                />
+            </div>
         </div>
     );
 };

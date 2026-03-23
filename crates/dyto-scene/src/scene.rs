@@ -1,6 +1,6 @@
 use bevy::{
     app::PluginGroup,
-    camera::Camera3d,
+    camera::{Camera3d, ClearColor},
     color::Color,
     light::DirectionalLight,
     math::primitives::Cuboid,
@@ -35,6 +35,8 @@ impl Scene {
         }));
         app.add_systems(Startup, Self::setup);
         app.add_systems(Update, SceneCamera::update);
+
+        app.insert_resource(ClearColor(Color::BLACK));
 
         Self { app }
     }

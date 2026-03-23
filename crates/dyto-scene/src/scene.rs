@@ -1,3 +1,5 @@
+//! The scene entry point.
+
 use bevy::{
     app::PluginGroup,
     camera::{Camera3d, ClearColor},
@@ -8,19 +10,19 @@ use bevy::{
     pbr::MeshMaterial3d,
     prelude::{
         App, Assets, Commands, DefaultPlugins, EulerRot, Mesh, Quat, ResMut,
-        StandardMaterial, Startup, Transform, Update, Vec3, Window,
-        WindowPlugin,
+        StandardMaterial, Startup, Transform, Vec3, Window, WindowPlugin,
     },
 };
 
-use crate::entities::scene_camera::SceneCamera;
+use crate::scene_camera;
 
+/// The main scene struct that holds the Bevy app.
 pub struct Scene {
     app: App,
 }
 
 impl Scene {
-    // web feature only
+    /// Create a new scene with the default plugins and a primary window.
     #[cfg(feature = "web")]
     pub fn new(canvas_selector: &str) -> Self {
         let mut app = App::new();
@@ -33,19 +35,21 @@ impl Scene {
             }),
             ..Default::default()
         }));
+        app.add_plugins(scene_camera::SceneCameraPlugin);
         app.add_systems(Startup, Self::setup);
-        app.add_systems(Update, SceneCamera::update);
 
         app.insert_resource(ClearColor(Color::BLACK));
 
         Self { app }
     }
 
+    /// Run the scene.
     #[cfg(feature = "web")]
     pub fn run(&mut self) {
         self.app.run();
     }
 
+    /// Setup the scene with a camera, light, and a cube.
     pub fn setup(
         mut commands: Commands,
         mut meshes: ResMut<Assets<Mesh>>,
@@ -55,7 +59,7 @@ impl Scene {
             Camera3d::default(),
             Transform::from_xyz(0.0, 5.0, 0.0)
                 .looking_at(Vec3::ZERO, Vec3::NEG_Z),
-            SceneCamera::default(),
+            scene_camera::MovableCamera::default(),
         ));
 
         commands.spawn((

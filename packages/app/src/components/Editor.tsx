@@ -1,6 +1,5 @@
 import { PanelRightOpen } from 'lucide-solid';
 import { type Component, createSignal } from 'solid-js';
-import { useI18n } from '../utilities/hooks/i18n';
 import { ResizeDragger } from './ResizeDragger';
 import { Scene } from './Scene';
 import { SideArea } from './SideArea';
@@ -11,7 +10,6 @@ const SIDE_AREA_MIN_WIDTH = 192;
 const SIDE_AREA_MAX_WIDTH = 640;
 
 export const Editor: Component = () => {
-    const i18n = useI18n();
     const [sideAreaWidth, setSideAreaWidth] = createSignal(
         SIDE_AREA_DEFAULT_WIDTH,
     );
@@ -42,11 +40,8 @@ export const Editor: Component = () => {
                         <button
                             class="p-2 rounded-lg transition cursor-pointer hover:bg-zinc-600"
                             onClick={() =>
-                                setSideAreaWidth(SIDE_AREA_MIN_WIDTH)
+                                setSideAreaWidth(SIDE_AREA_DEFAULT_WIDTH)
                             }
-                            title={i18n.t(
-                                'editor.sidepanel.showPanelButtonTooltip',
-                            )}
                             type="button"
                         >
                             <PanelRightOpen class="w-4 h-4" />

@@ -4,6 +4,7 @@
         "@resulted/results": "^1.0.0",
         "@solid-primitives/i18n": "^2.2.1",
         "@tailwindcss/vite": "^4.2.2",
+        "lucide-solid": "^0.577.0",
         "solid-js": "^1.9.11",
         "tailwindcss": "^4.2.2"
     },

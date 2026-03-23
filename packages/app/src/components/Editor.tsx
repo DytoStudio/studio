@@ -1,39 +1,60 @@
-import type { Component } from 'solid-js';
-import { SupportedLocales, useI18n } from '../utilities/hooks/i18n';
+import { PanelRightOpen } from 'lucide-solid';
+import { type Component, createSignal } from 'solid-js';
+import { useI18n } from '../utilities/hooks/i18n';
+import { ResizeDragger } from './ResizeDragger';
 import { Scene } from './Scene';
+import { SideArea } from './SideArea';
+
+const SIDE_AREA_HIDE_WIDTH = 128;
+const SIDE_AREA_DEFAULT_WIDTH = 256;
+const SIDE_AREA_MIN_WIDTH = 192;
+const SIDE_AREA_MAX_WIDTH = 640;
 
 export const Editor: Component = () => {
     const i18n = useI18n();
+    const [sideAreaWidth, setSideAreaWidth] = createSignal(
+        SIDE_AREA_DEFAULT_WIDTH,
+    );
 
     return (
-        <div class="h-full w-full flex flex-col overflow-hidden">
-            <div class="w-full shrink-0 h-12 bg-zinc-900 border-b border-zinc-700 flex items-center px-4 gap-4">
-                <h1 class="text-lg font-bold text-zinc-100">
-                    {i18n.t('app.name')}
-                </h1>
-                <button
-                    onClick={() => {
-                        const currentLocale = i18n.locale();
-                        const currentIndex = SupportedLocales.indexOf(currentLocale);
-                        const newIndex =
-                            (currentIndex + 1) % SupportedLocales.length;
-                        const newLocale = SupportedLocales[newIndex];
-                            
-                        i18n.setLocale(newLocale);
-                    }}
-                    type="button"
-                >
-                    change language
-                </button>
-            </div>
-            <div class="flex grow min-h-0 overflow-hidden">
-                <div class="shrink-0 w-md h-full bg-zinc-900 border-r border-zinc-700">
-                    <div class="p-4 text-sm text-zinc-500">
-                        {i18n.t('editor.sidepanel.placeholder')}
+        <div class="w-full h-full flex select-none bg-zinc-800">
+            <SideArea
+                hidden={sideAreaWidth() < SIDE_AREA_HIDE_WIDTH}
+                width={Math.max(
+                    SIDE_AREA_MIN_WIDTH,
+                    Math.min(SIDE_AREA_MAX_WIDTH, sideAreaWidth()),
+                )}
+            />
+            <ResizeDragger
+                accessibilityValue={sideAreaWidth()}
+                direction="horizontal"
+                hidden={sideAreaWidth() < SIDE_AREA_HIDE_WIDTH}
+                onDoubleClick={() => {
+                    setSideAreaWidth(SIDE_AREA_DEFAULT_WIDTH);
+                }}
+                onResize={(delta) => {
+                    setSideAreaWidth((w) => w + delta);
+                }}
+            />
+            <div class="w-full h-full relative">
+                {sideAreaWidth() < SIDE_AREA_HIDE_WIDTH ? (
+                    <div class="absolute top-2 left-2 text-xs bg-zinc-800 border border-zinc-600/20 rounded-xl p-1 shadow-lg">
+                        <button
+                            class="p-2 rounded-lg transition cursor-pointer hover:bg-zinc-600"
+                            onClick={() =>
+                                setSideAreaWidth(SIDE_AREA_MIN_WIDTH)
+                            }
+                            title={i18n.t(
+                                'editor.sidepanel.showPanelButtonTooltip',
+                            )}
+                            type="button"
+                        >
+                            <PanelRightOpen class="w-4 h-4" />
+                        </button>
                     </div>
-                </div>
+                ) : null}
                 <Scene
-                    class="w-full! h-full! min-w-0! min-h-0!"
+                    class="w-full h-full outline-none"
                     onSceneReady={(scene) => {
                         console.log(scene, 2);
                     }}

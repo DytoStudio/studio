@@ -14,10 +14,13 @@ use bevy::{
     },
 };
 
-use crate::scene_camera;
+use crate::{image_tile, scene_camera};
 
 /// The main scene struct that holds the Bevy app.
 pub struct Scene {
+    /// The Bevy app for the scene.
+    ///
+    /// This is useless after `run()` is called.
     app: App,
 }
 
@@ -36,6 +39,7 @@ impl Scene {
             ..Default::default()
         }));
         app.add_plugins(scene_camera::SceneCameraPlugin);
+        app.add_plugins(image_tile::ImageTilePlugin);
         app.add_systems(Startup, Self::setup);
 
         app.insert_resource(ClearColor(Color::BLACK));
@@ -60,6 +64,7 @@ impl Scene {
             Transform::from_xyz(0.0, 5.0, 0.0)
                 .looking_at(Vec3::ZERO, Vec3::NEG_Z),
             scene_camera::MovableCamera::default(),
+            scene_camera::ImageTileLoadingCamera,
         ));
 
         commands.spawn((

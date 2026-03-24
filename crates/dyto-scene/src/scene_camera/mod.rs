@@ -2,20 +2,25 @@
 
 use bevy::{
     app::{App, Plugin, Update},
-    ecs::schedule::SystemSet,
+    ecs::{component::Component, schedule::SystemSet},
 };
 
 pub mod movable_camera;
 
 pub use movable_camera::MovableCamera;
 
+/// Any camera that should load and unload image tiles.
+#[derive(Component, Debug)]
+pub struct ImageTileLoadingCamera;
+
 /// System sets for the scene camera.
+///
+/// todo: consider splitting MoveCamera into separate systems (such as
+///       ZoomCamera and PanCamera).
 #[derive(SystemSet, Clone, PartialEq, Eq, Hash, Debug)]
 pub enum SceneCameraSystem {
-    /// Moves the camera.
+    /// Move the camera.
     MoveCamera,
-    /// Load and unload tiles.
-    ManageTiles,
 }
 
 /// The plugin for the scene camera.

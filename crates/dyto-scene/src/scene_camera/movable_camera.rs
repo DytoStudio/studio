@@ -24,12 +24,12 @@ const MINIMAL_DIFFERENCE: f32 = 0.1;
 /// The minimal height the camera can zoom to.
 const MIN_CAMERA_HEIGHT: f32 = 1.0;
 /// The maximal height the camera can zoom to.
-const MAX_CAMERA_HEIGHT: f32 = 10000.0;
+const MAX_CAMERA_HEIGHT: f32 = 1000000000.0;
 
 /// A component that allows the camera to be moved with user input.
 /// todo: remove panning using mouse events (zoom only) and replace panning with
 ///       clicking and dragging. This will allow us to match industry norms.
-#[derive(Component, Clone, Debug)]
+#[derive(Component, Debug)]
 pub struct MovableCamera {
     /// Whether the control key is currently pressed.
     ///

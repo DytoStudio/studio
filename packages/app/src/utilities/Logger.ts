@@ -100,7 +100,11 @@ export class Logger {
      * details.
      */
     private log(level: LogLevel, message: string, details: unknown): void {
-        if (!Logger.logFunction || !Logger.logLevel || level < Logger.logLevel)
+        if (
+            !Logger.logFunction ||
+            Logger.logLevel === null ||
+            level < Logger.logLevel
+        )
             return;
 
         Logger.logFunction(level, this.module, message, details);

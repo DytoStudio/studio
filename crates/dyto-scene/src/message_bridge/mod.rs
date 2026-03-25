@@ -37,7 +37,6 @@ pub struct MessageBridgePlugin;
 /// A function to dispatch messages from the embedder to the scene.
 fn dispatch_messages(mut commands: Commands, bridge: Res<MessageBridge>) {
     for message in bridge.receiver.try_iter() {
-        bevy::log::debug!("Received message from embedder: {:?}", message);
         match message {
             EmbedderToSceneMessages::ImageTileLoaded(image_tile_loaded) => {
                 commands.write_message(image_tile_loaded)

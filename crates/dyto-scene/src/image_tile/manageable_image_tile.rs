@@ -19,6 +19,9 @@ use crate::{
     scene_camera,
 };
 
+/// Additional levels of detail to load.
+const ADDITIONAL_LOD_LEVELS: u8 = 10;
+
 /// The component for a manageable image tile.
 #[derive(Component, Debug)]
 pub struct ManageableImageTile;
@@ -30,43 +33,15 @@ fn lod_for_height(height: f32) -> mercator::LevelOfDetail {
     )
 }
 
-/// Get the visible tiles for a given camera.
-fn visible_tiles(
-    camera: &Camera,
-    global_transform: &GlobalTransform,
-) -> Option<Box<[mercator::TileCoordinate]>> {
-    let viewport_size = camera.logical_viewport_size()?;
-    fn raycast_to_ground(
-        camera: &Camera,
-        global_transform: &GlobalTransform,
-        position: Vec2,
-    ) -> Option<Vec2> {
-        let raycast =
-            camera.viewport_to_world(global_transform, position).ok()?;
-        let intersection = raycast
-            .intersect_plane(Vec3::ZERO, InfinitePlane3d::new(Vec3::Y))?;
-        let world_pos = raycast.origin + raycast.direction * intersection;
-        Some(Vec2::new(world_pos.x, world_pos.z))
-    }
-    let top_left_world =
-        raycast_to_ground(camera, global_transform, Vec2::new(0.0, 0.0))?;
-    let top_right_world = raycast_to_ground(
-        camera,
-        global_transform,
-        Vec2::new(viewport_size.x, 0.0),
-    )?;
-    let bottom_left_world = raycast_to_ground(
-        camera,
-        global_transform,
-        Vec2::new(0.0, viewport_size.y),
-    )?;
-    let bottom_right_world = raycast_to_ground(
-        camera,
-        global_transform,
-        Vec2::new(viewport_size.x, viewport_size.y),
-    )?;
-
-    let lod = lod_for_height(global_transform.translation().y);
+/// Get the tiles within a bounding box.
+fn tiles_in_bounding_box(
+    result: &mut Vec<mercator::TileCoordinate>,
+    top_left_world: Vec2,
+    top_right_world: Vec2,
+    bottom_left_world: Vec2,
+    bottom_right_world: Vec2,
+    lod: mercator::LevelOfDetail,
+) {
     let tile_size =
         (lod.ground_resolution(0.0) * mercator::TILE_SIZE_FLOAT) as f32;
 
@@ -112,8 +87,7 @@ fn visible_tiles(
     let da_edge = a - d;
 
     let total_tiles = (bounding_box_size_x * bounding_box_size_y) as usize;
-    let mut result: Vec<mercator::TileCoordinate> =
-        Vec::with_capacity(total_tiles);
+    result.reserve(total_tiles);
 
     fn cross(a: Vec2, b: Vec2) -> f32 {
         a.x * b.y - a.y * b.x
@@ -170,6 +144,59 @@ fn visible_tiles(
                 lod,
             ));
         }
+    }
+}
+
+/// Get the visible tiles for a given camera.
+fn visible_tiles(
+    camera: &Camera,
+    global_transform: &GlobalTransform,
+) -> Option<Box<[mercator::TileCoordinate]>> {
+    let viewport_size = camera.logical_viewport_size()?;
+    fn raycast_to_ground(
+        camera: &Camera,
+        global_transform: &GlobalTransform,
+        position: Vec2,
+    ) -> Option<Vec2> {
+        let raycast =
+            camera.viewport_to_world(global_transform, position).ok()?;
+        let intersection = raycast
+            .intersect_plane(Vec3::ZERO, InfinitePlane3d::new(Vec3::Y))?;
+        let world_pos = raycast.origin + raycast.direction * intersection;
+        Some(Vec2::new(world_pos.x, world_pos.z))
+    }
+    let top_left_world =
+        raycast_to_ground(camera, global_transform, Vec2::new(0.0, 0.0))?;
+    let top_right_world = raycast_to_ground(
+        camera,
+        global_transform,
+        Vec2::new(viewport_size.x, 0.0),
+    )?;
+    let bottom_left_world = raycast_to_ground(
+        camera,
+        global_transform,
+        Vec2::new(0.0, viewport_size.y),
+    )?;
+    let bottom_right_world = raycast_to_ground(
+        camera,
+        global_transform,
+        Vec2::new(viewport_size.x, viewport_size.y),
+    )?;
+
+    let lod = lod_for_height(global_transform.translation().y).value();
+    let mut result = Vec::new();
+
+    for lod in
+        (((lod as i8 - ADDITIONAL_LOD_LEVELS as i8).max(0) as u8)..=lod).rev()
+    {
+        tiles_in_bounding_box(
+            &mut result,
+            top_left_world,
+            top_right_world,
+            bottom_left_world,
+            bottom_right_world,
+            mercator::LevelOfDetail::new(lod),
+        );
     }
 
     Some(result.into_boxed_slice())

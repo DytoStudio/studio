@@ -23,6 +23,10 @@ use crate::{
     message_bridge::{self, SceneToEmbedderMessages, messages},
 };
 
+/// The offset to prevent z-fighting between image tiles with different levels
+/// of detail.
+const Z_FIGHTING_OFFSET: f32 = 0.1;
+
 /// The loading state of the image tile.
 #[derive(Component, Debug)]
 pub enum ImageTileState {
@@ -82,6 +86,12 @@ pub fn load_image_tile_update(
                         * mercator::TILE_SIZE_FLOAT;
 
                 let world = tile.coordinate.as_world_position();
+
+                let y_offset = tile.coordinate.level_of_detail().value() as f32
+                    * Z_FIGHTING_OFFSET
+                    - (mercator::LevelOfDetail::MAX.value() as f32
+                        * Z_FIGHTING_OFFSET);
+
                 commands.entity(entity).insert((
                     Mesh3d(
                         meshes.add(
@@ -95,7 +105,11 @@ pub fn load_image_tile_update(
                         unlit: true,
                         ..Default::default()
                     })),
-                    Transform::from_xyz(world.0 as f32, 0.0, -world.1 as f32),
+                    Transform::from_xyz(
+                        world.0 as f32,
+                        y_offset,
+                        -world.1 as f32,
+                    ),
                 ));
 
                 *state = ImageTileState::Loaded;

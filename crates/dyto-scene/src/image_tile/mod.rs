@@ -13,9 +13,6 @@ pub use image_tile_loader::{ImageTile, ImageTileState};
 pub use manageable_image_tile::ManageableImageTile;
 
 /// System sets for image tiles.
-///
-/// todo: consider splitting MoveCamera into seperate systems (such as
-///       ZoomCamera and PanCamera).
 #[derive(SystemSet, Clone, PartialEq, Eq, Hash, Debug)]
 pub enum ImageTileSystem {
     /// Manage the image tiles.

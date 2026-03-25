@@ -8,4 +8,8 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 dyto-scene = { path = "../dyto-scene", features = ["web"] }
-wasm-bindgen = "0.2"
+wasm-bindgen = "0.2.114"
+js-sys = "0.3.91"
+crossbeam-channel = "0.5.15"
+log = "0.4.29"
+console_log = "1.0.0"

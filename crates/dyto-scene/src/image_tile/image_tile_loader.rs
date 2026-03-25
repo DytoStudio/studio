@@ -1,14 +1,27 @@
 //! Image tile components.
 
+use std::{collections::HashMap, sync::Arc};
+
 use bevy::{
-    // camera::Camera,
-    color::Color,
-    ecs::{component::Component, system::Query},
-    gizmos::gizmos::Gizmos,
-    math::{Isometry3d, Quat, Vec2, Vec3},
+    asset::{Assets, RenderAssetUsages},
+    ecs::{
+        component::Component,
+        entity::Entity,
+        message::MessageReader,
+        system::{Commands, Query, Res, ResMut},
+    },
+    image::Image,
+    math::primitives::Plane3d,
+    mesh::{Mesh, Mesh3d, Meshable},
+    pbr::{MeshMaterial3d, StandardMaterial},
+    render::render_resource::{Extent3d, TextureDimension, TextureFormat},
+    transform::components::Transform,
 };
 
-use crate::image_tile::mercator;
+use crate::{
+    image_tile::mercator,
+    message_bridge::{self, SceneToEmbedderMessages, messages},
+};
 
 /// The loading state of the image tile.
 #[derive(Component, Debug)]
@@ -28,26 +41,75 @@ pub struct ImageTile {
     pub coordinate: mercator::TileCoordinate,
 }
 
-/// Draw gizmos for image tiles durring the `Update` stage.
+/// Load or request for image tiles during the `Update` stage.
 pub fn load_image_tile_update(
-    tiles: Query<(&ImageTile, &ImageTileState)>,
-    mut gizmos: Gizmos,
+    mut commands: Commands,
+    mut tiles: Query<(Entity, &ImageTile, &mut ImageTileState)>,
+    mut images: ResMut<Assets<Image>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut loaded_tiles: MessageReader<messages::ImageTileLoaded>,
+    message_bridge: Res<message_bridge::MessageBridge>,
 ) {
-    for (tile, _state) in tiles.iter() {
-        let color = Color::WHITE;
-        let size =
-            tile.coordinate.level_of_detail().ground_resolution(0.0) * 256.0;
-        let world = tile.coordinate.as_world_position();
-        let x = world.0 as f32;
-        let z = -world.1 as f32;
+    let mut image_data: HashMap<mercator::TileCoordinate, Arc<[u8]>> =
+        HashMap::new();
+    for message in loaded_tiles.read() {
+        image_data.insert(message.0, message.1.clone());
+    }
 
-        gizmos.rect(
-            Isometry3d::new(
-                Vec3::new(x, 0.0, z),
-                Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
-            ),
-            Vec2::splat(size as f32),
-            color,
-        );
+    let mut tiles_to_request = Vec::new();
+    for (entity, tile, mut state) in tiles.iter_mut() {
+        match *state {
+            ImageTileState::Loaded => (),
+            ImageTileState::Loading => {
+                let Some(data) = image_data.get(&tile.coordinate) else {
+                    continue;
+                };
+                let image = Image::new(
+                    Extent3d {
+                        width: mercator::TILE_SIZE,
+                        height: mercator::TILE_SIZE,
+                        depth_or_array_layers: 1,
+                    },
+                    TextureDimension::D2,
+                    data.to_vec(),
+                    TextureFormat::Rgba8UnormSrgb,
+                    RenderAssetUsages::RENDER_WORLD,
+                );
+
+                let size =
+                    tile.coordinate.level_of_detail().ground_resolution(0.0)
+                        * mercator::TILE_SIZE_FLOAT;
+
+                let world = tile.coordinate.as_world_position();
+                commands.entity(entity).insert((
+                    Mesh3d(
+                        meshes.add(
+                            Plane3d::default()
+                                .mesh()
+                                .size(size as f32, size as f32),
+                        ),
+                    ),
+                    MeshMaterial3d(materials.add(StandardMaterial {
+                        base_color_texture: Some(images.add(image)),
+                        unlit: true,
+                        ..Default::default()
+                    })),
+                    Transform::from_xyz(world.0 as f32, 0.0, -world.1 as f32),
+                ));
+
+                *state = ImageTileState::Loaded;
+            }
+            ImageTileState::Uninitialized => {
+                tiles_to_request.push(tile.coordinate);
+                *state = ImageTileState::Loading;
+            }
+        }
+    }
+
+    if !tiles_to_request.is_empty() {
+        (message_bridge.send_fn)(SceneToEmbedderMessages::RequestImageTile(
+            tiles_to_request.into_boxed_slice(),
+        ));
     }
 }

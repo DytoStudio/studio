@@ -1927,6 +1927,7 @@ name = "dyto-scene"
 version = "0.0.0"
 dependencies = [
  "bevy",
+ "crossbeam-channel",
 ]
 
 [[package]]

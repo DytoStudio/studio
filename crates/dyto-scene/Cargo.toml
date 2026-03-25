@@ -27,3 +27,4 @@ bevy = { git = "https://github.com/DytoStudio/bevy", branch = "feat/modifiers", 
     "bevy_gizmos",
     "bevy_gizmos_render",
 ] }
+crossbeam-channel = "0.5.15"

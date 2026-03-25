@@ -13,8 +13,9 @@ use bevy::{
         StandardMaterial, Startup, Transform, Vec3, Window, WindowPlugin,
     },
 };
+use crossbeam_channel::Receiver;
 
-use crate::{image_tile, scene_camera};
+use crate::{image_tile, message_bridge, scene_camera};
 
 /// The main scene struct that holds the Bevy app.
 pub struct Scene {
@@ -38,6 +39,7 @@ impl Scene {
             }),
             ..Default::default()
         }));
+        app.add_plugins(message_bridge::MessageBridgePlugin);
         app.add_plugins(scene_camera::SceneCameraPlugin);
         app.add_plugins(image_tile::ImageTilePlugin);
         app.add_systems(Startup, Self::setup);
@@ -53,8 +55,25 @@ impl Scene {
         self.app.run();
     }
 
+    /// Setup the message bridge for the scene.
+    ///
+    /// This won't work after `run()` is called.
+    pub fn setup_message_bridge(
+        &mut self,
+        receiver: Receiver<message_bridge::EmbedderToSceneMessages>,
+        send_fn: Box<
+            dyn Fn(message_bridge::SceneToEmbedderMessages) + Send + Sync,
+        >,
+    ) {
+        let mut resource = self
+            .app
+            .world_mut()
+            .resource_mut::<message_bridge::MessageBridge>();
+        *resource = message_bridge::MessageBridge { receiver, send_fn };
+    }
+
     /// Setup the scene with a camera, light, and a cube.
-    pub fn setup(
+    fn setup(
         mut commands: Commands,
         mut meshes: ResMut<Assets<Mesh>>,
         mut materials: ResMut<Assets<StandardMaterial>>,

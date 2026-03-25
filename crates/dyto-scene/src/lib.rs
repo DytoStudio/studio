@@ -9,5 +9,6 @@
 #![deny(clippy::wildcard_imports)]
 
 pub mod image_tile;
+pub mod message_bridge;
 pub mod scene;
 pub mod scene_camera;

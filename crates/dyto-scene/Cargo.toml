@@ -7,7 +7,7 @@ edition = "2024"
 web = []
 
 [dependencies]
-bevy = { git = "https://github.com/DytoStudio/bevy", branch = "feat/modifiers", default-features = false, features = [
+bevy = { version = "0.18.1", default-features = false, features = [
     "std",
     "bevy_winit",
     "bevy_render",

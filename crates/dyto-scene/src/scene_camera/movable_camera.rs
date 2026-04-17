@@ -3,17 +3,18 @@
 use bevy::{
     camera::Camera,
     ecs::{component::Component, query::With, system::Query},
-    input::mouse::MouseWheel,
+    input::{
+        ButtonState,
+        mouse::{MouseButton, MouseButtonInput, MouseWheel},
+    },
     math::{Vec2, Vec3, primitives::InfinitePlane3d},
-    prelude::{KeyModifierState, KeyModifiers, MessageReader},
+    prelude::MessageReader,
     transform::components::{GlobalTransform, Transform},
     window::{PrimaryWindow, Window},
 };
 
 /// The sensitivity of the camera zooming.
 const ZOOM_SENSITIVITY: f32 = 0.01;
-/// The sensitivity of the camera panning.
-const PAN_SENSITIVITY: f32 = 0.001;
 /// The lerp factor for camera zooming animation.
 const ZOOM_LERP_FACTOR: f32 = 0.1;
 /// The lerp factor for camera panning animation.
@@ -27,19 +28,12 @@ const MIN_CAMERA_HEIGHT: f32 = 1.0;
 const MAX_CAMERA_HEIGHT: f32 = 1000000000.0;
 
 /// A component that allows the camera to be moved with user input.
-/// todo: remove panning using mouse events (zoom only) and replace panning with
-///       clicking and dragging. This will allow us to match industry norms.
 #[derive(Component, Debug)]
 pub struct MovableCamera {
-    /// Whether the control key is currently pressed.
+    /// The world position of the point the user clicked on to pan the camera.
     ///
-    /// This is a workaround for the fact that `winit` sends `Modifiers` event
-    /// seperately from the `MouseWheel` event. In the future, `winit` plans to
-    /// detect the control key durring the `MouseWheel` event, and re-route it
-    /// as a `Pinch` event.
-    ///
-    /// See: https://github.com/rust-windowing/winit/issues/4535
-    has_control_key: bool,
+    /// If the user is not currently panning the camera, this will be `None`.
+    pan_scene_position: Option<Vec2>,
     /// Whether the camera is currently animating towards the target height.
     ///
     /// If false, the camera instantly moves to the target height.
@@ -57,7 +51,7 @@ pub struct MovableCamera {
 impl Default for MovableCamera {
     fn default() -> Self {
         Self {
-            has_control_key: false,
+            pan_scene_position: None,
             animating_height: false,
             target_height: 5.0,
 
@@ -67,7 +61,7 @@ impl Default for MovableCamera {
     }
 }
 
-/// Handles user input to move the camera durring `Update`.
+/// Handles user input to move the camera during `Update`.
 pub fn move_camera_update(
     mut query: Query<(
         &mut Transform,
@@ -76,7 +70,7 @@ pub fn move_camera_update(
         &GlobalTransform,
     )>,
     mut scroll: MessageReader<MouseWheel>,
-    mut modifiers: MessageReader<KeyModifiers>,
+    mut button: MessageReader<MouseButtonInput>,
     window: Query<&Window, With<PrimaryWindow>>,
 ) {
     // Get the scroll wheel delta.
@@ -86,10 +80,12 @@ pub fn move_camera_update(
     }
 
     // Check for updates in the control key state.
-    let mut control_key_pressed: Option<bool> = None;
-    for event in modifiers.read() {
-        control_key_pressed =
-            Some(event.state.contains(KeyModifierState::CONTROL));
+    let mut mouse_button_pressed: Option<bool> = None;
+    for event in button.read() {
+        if event.button != MouseButton::Left {
+            continue;
+        }
+        mouse_button_pressed = Some(event.state == ButtonState::Pressed);
     }
 
     let cursor_position =
@@ -98,27 +94,49 @@ pub fn move_camera_update(
     for (mut transform, mut camera, camera_component, global_transform) in
         query.iter_mut()
     {
-        // Update the camera's control key state if it has changed.
-        if let Some(pressed) = control_key_pressed {
-            camera.has_control_key = pressed;
+        // Start panning the camera.
+        if let Some(pan_world_pos) = camera.pan_scene_position {
+            if let Some(cursor) = cursor_position
+                && let Ok(raycast) =
+                    camera_component.viewport_to_world(global_transform, cursor)
+                && let Some(intersection) = raycast
+                    .intersect_plane(Vec3::ZERO, InfinitePlane3d::new(Vec3::Y))
+            {
+                let current_world_pos = Vec2::new(
+                    raycast.origin.x + raycast.direction.x * intersection,
+                    raycast.origin.z + raycast.direction.z * intersection,
+                );
+                let delta = pan_world_pos - current_world_pos;
+                camera.target_position += delta;
+                camera.animating_position = false;
+            }
+
+            // Detect letting go of the mouse button to stop panning.
+            if mouse_button_pressed == Some(false) {
+                camera.pan_scene_position = None;
+            }
+        } else if mouse_button_pressed == Some(true)
+            && let Some(cursor) = cursor_position
+            && let Ok(raycast) =
+                camera_component.viewport_to_world(global_transform, cursor)
+            && let Some(intersection) = raycast
+                .intersect_plane(Vec3::ZERO, InfinitePlane3d::new(Vec3::Y))
+        {
+            camera.pan_scene_position = Some(Vec2::new(
+                raycast.origin.x + raycast.direction.x * intersection,
+                raycast.origin.z + raycast.direction.z * intersection,
+            ));
         }
 
-        // Pan or zoom the camera based.
-        if !camera.has_control_key {
-            // Pan the camera
-            let height = transform.translation.y;
-            let speed = height * PAN_SENSITIVITY;
-            camera.animating_position = false;
-            camera.target_position.x -= delta.x * speed;
-            camera.target_position.y -= delta.y * speed;
-        } else if let Some(cursor) = cursor_position
+        // Zoom the camera.
+        if let Some(cursor) = cursor_position
             && let Ok(raycast) =
                 camera_component.viewport_to_world(global_transform, cursor)
             && let Some(intersection) = raycast
                 .intersect_plane(Vec3::ZERO, InfinitePlane3d::new(Vec3::Y))
         {
             let world_pos = raycast.origin + raycast.direction * intersection;
-            let height = transform.translation.y;
+            let height = camera.target_height;
             let speed = height * ZOOM_SENSITIVITY;
             let new_height = (height - delta.y * speed)
                 .clamp(MIN_CAMERA_HEIGHT, MAX_CAMERA_HEIGHT);
@@ -127,9 +145,9 @@ pub fn move_camera_update(
             camera.animating_height = false;
             camera.target_height = new_height;
             camera.target_position.x = world_pos.x
-                + (transform.translation.x - world_pos.x) * zoom_ratio;
+                + (camera.target_position.x - world_pos.x) * zoom_ratio;
             camera.target_position.y = world_pos.z
-                + (transform.translation.z - world_pos.z) * zoom_ratio;
+                + (camera.target_position.y - world_pos.z) * zoom_ratio;
         }
 
         // Animate the camera height.

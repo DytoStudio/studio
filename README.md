@@ -89,7 +89,8 @@ application logic.
 
 Contributions to Dyto Studio are welcome.
 1. Make sure to run `pnpm format` to format TypeScript.
-2. Make sure to run `cargo fmt` to format Rust code. 
+2. Make sure to run `cargo fmt` to format Rust code.
+3. Make sure to run `cargo clippy` to lint Rust code.
 
 ## License
 

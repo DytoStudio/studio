@@ -7,25 +7,23 @@ use bevy::{
     ecs::{
         component::Component,
         entity::Entity,
+        hierarchy::ChildOf,
         message::MessageReader,
         system::{Commands, Query, Res, ResMut},
     },
     image::Image,
-    math::primitives::Plane3d,
+    math::{DVec3, primitives::Plane3d},
     mesh::{Mesh, Mesh3d, Meshable},
     pbr::{MeshMaterial3d, StandardMaterial},
     render::render_resource::{Extent3d, TextureDimension, TextureFormat},
     transform::components::Transform,
 };
+use big_space::prelude::{CellCoord, Grids};
 
 use crate::{
     image_tile::mercator,
     message_bridge::{self, SceneToEmbedderMessages, messages},
 };
-
-/// The offset to prevent z-fighting between image tiles with different levels
-/// of detail.
-const Z_FIGHTING_OFFSET: f32 = 0.1;
 
 /// The loading state of the image tile.
 #[derive(Component, Debug)]
@@ -46,14 +44,22 @@ pub struct ImageTile {
 }
 
 /// Load or request for image tiles during the `Update` stage.
+#[allow(clippy::too_many_arguments)]
 pub fn load_image_tile_update(
     mut commands: Commands,
-    mut tiles: Query<(Entity, &ImageTile, &mut ImageTileState)>,
+    mut tiles: Query<(
+        &ChildOf,
+        Entity,
+        &mut CellCoord,
+        &ImageTile,
+        &mut ImageTileState,
+    )>,
     mut images: ResMut<Assets<Image>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut loaded_tiles: MessageReader<messages::ImageTileLoaded>,
     message_bridge: Res<message_bridge::MessageBridge>,
+    grids: Grids,
 ) {
     let mut image_data: HashMap<mercator::TileCoordinate, Arc<[u8]>> =
         HashMap::new();
@@ -62,7 +68,8 @@ pub fn load_image_tile_update(
     }
 
     let mut tiles_to_request = Vec::new();
-    for (entity, tile, mut state) in tiles.iter_mut() {
+    for (child_of, entity, mut cell_coord, tile, mut state) in tiles.iter_mut()
+    {
         match *state {
             ImageTileState::Loaded => (),
             ImageTileState::Loading => {
@@ -87,10 +94,12 @@ pub fn load_image_tile_update(
 
                 let world = tile.coordinate.as_world_position();
 
-                let y_offset = tile.coordinate.level_of_detail().value() as f32
-                    * Z_FIGHTING_OFFSET
-                    - (mercator::LevelOfDetail::MAX.value() as f32
-                        * Z_FIGHTING_OFFSET);
+                let target_position = DVec3::new(world.0, 0.0, -world.1);
+                let (coord, translation) = grids
+                    .get(child_of.parent())
+                    .translation_to_grid(target_position);
+
+                *cell_coord = coord;
 
                 commands.entity(entity).insert((
                     Mesh3d(
@@ -105,11 +114,7 @@ pub fn load_image_tile_update(
                         unlit: true,
                         ..Default::default()
                     })),
-                    Transform::from_xyz(
-                        world.0 as f32,
-                        y_offset,
-                        -world.1 as f32,
-                    ),
+                    Transform::from_translation(translation),
                 ));
 
                 *state = ImageTileState::Loaded;

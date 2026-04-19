@@ -7,12 +7,14 @@ use bevy::{
     ecs::{
         component::Component,
         entity::Entity,
+        hierarchy::ChildOf,
         query::With,
         system::{Commands, Query},
     },
-    math::{Vec2, Vec3, primitives::InfinitePlane3d},
-    transform::components::GlobalTransform,
+    math::{DVec2, DVec3, Vec2},
+    transform::components::{GlobalTransform, Transform},
 };
+use big_space::prelude::{CellCoord, Grids};
 
 use crate::{
     image_tile::{ImageTile, ImageTileState, mercator},
@@ -27,7 +29,7 @@ const ADDITIONAL_LOD_LEVELS: u8 = 10;
 pub struct ManageableImageTile;
 
 /// Get the level of detail for a given camera height.
-fn lod_for_height(height: f32) -> mercator::LevelOfDetail {
+fn lod_for_height(height: f64) -> mercator::LevelOfDetail {
     mercator::LevelOfDetail::new(
         (28.0 - height.log2().ceil()).clamp(0.0, 255.0) as u8,
     )
@@ -36,14 +38,13 @@ fn lod_for_height(height: f32) -> mercator::LevelOfDetail {
 /// Get the tiles within a bounding box.
 fn tiles_in_bounding_box(
     result: &mut Vec<mercator::TileCoordinate>,
-    top_left_world: Vec2,
-    top_right_world: Vec2,
-    bottom_left_world: Vec2,
-    bottom_right_world: Vec2,
+    top_left_world: DVec2,
+    top_right_world: DVec2,
+    bottom_left_world: DVec2,
+    bottom_right_world: DVec2,
     lod: mercator::LevelOfDetail,
 ) {
-    let tile_size =
-        (lod.ground_resolution(0.0) * mercator::TILE_SIZE_FLOAT) as f32;
+    let tile_size = lod.ground_resolution(0.0) * mercator::TILE_SIZE_FLOAT;
 
     // +- 1 is added to make sure the bounding box covers all the tiles that
     // are partially covered by the camera view.
@@ -89,7 +90,7 @@ fn tiles_in_bounding_box(
     let total_tiles = (bounding_box_size_x * bounding_box_size_y) as usize;
     result.reserve(total_tiles);
 
-    fn cross(a: Vec2, b: Vec2) -> f32 {
+    fn cross(a: DVec2, b: DVec2) -> f64 {
         a.x * b.y - a.y * b.x
     }
 
@@ -99,10 +100,10 @@ fn tiles_in_bounding_box(
         let x = tile as isize % bounding_box_size_x + bounding_box_top_left_x;
         let y = tile as isize / bounding_box_size_x + bounding_box_top_left_y;
         let positions = [
-            Vec2::new(x as f32, y as f32),
-            Vec2::new(x as f32 + 1.0, y as f32),
-            Vec2::new(x as f32 + 1.0, y as f32 + 1.0),
-            Vec2::new(x as f32, y as f32 + 1.0),
+            DVec2::new(x as f64, y as f64),
+            DVec2::new(x as f64 + 1.0, y as f64),
+            DVec2::new(x as f64 + 1.0, y as f64 + 1.0),
+            DVec2::new(x as f64, y as f64 + 1.0),
         ];
 
         let mut inside = false;
@@ -124,10 +125,10 @@ fn tiles_in_bounding_box(
         // corners are
         if !inside {
             for corner in [a, b, c, d] {
-                if corner.x >= x as f32
-                    && corner.x < x as f32 + 1.0
-                    && corner.y >= y as f32
-                    && corner.y < y as f32 + 1.0
+                if corner.x >= x as f64
+                    && corner.x < x as f64 + 1.0
+                    && corner.y >= y as f64
+                    && corner.y < y as f64 + 1.0
                 {
                     inside = true;
                     break;
@@ -150,40 +151,67 @@ fn tiles_in_bounding_box(
 /// Get the visible tiles for a given camera.
 fn visible_tiles(
     camera: &Camera,
+    camera_position: &DVec3,
     global_transform: &GlobalTransform,
 ) -> Option<Box<[mercator::TileCoordinate]>> {
     let viewport_size = camera.logical_viewport_size()?;
+
     fn raycast_to_ground(
         camera: &Camera,
+        camera_position: &DVec3,
         global_transform: &GlobalTransform,
         position: Vec2,
-    ) -> Option<Vec2> {
+    ) -> Option<DVec2> {
         let raycast =
             camera.viewport_to_world(global_transform, position).ok()?;
-        let intersection = raycast
-            .intersect_plane(Vec3::ZERO, InfinitePlane3d::new(Vec3::Y))?;
-        let world_pos = raycast.origin + raycast.direction * intersection;
-        Some(Vec2::new(world_pos.x, world_pos.z))
+
+        let direction = DVec3::new(
+            raycast.direction.x as f64,
+            raycast.direction.y as f64,
+            raycast.direction.z as f64,
+        );
+        if direction.y.abs() < f64::EPSILON {
+            return None;
+        }
+        let ground_multiplier = -camera_position.y / direction.y;
+        if ground_multiplier < 0.0 {
+            return None;
+        }
+
+        let raycast_world = DVec2::new(camera_position.x, camera_position.z)
+            + DVec2::new(
+                direction.x * ground_multiplier,
+                direction.z * ground_multiplier,
+            );
+
+        Some(raycast_world)
     }
-    let top_left_world =
-        raycast_to_ground(camera, global_transform, Vec2::new(0.0, 0.0))?;
+    let top_left_world = raycast_to_ground(
+        camera,
+        camera_position,
+        global_transform,
+        Vec2::new(0.0, 0.0),
+    )?;
     let top_right_world = raycast_to_ground(
         camera,
+        camera_position,
         global_transform,
         Vec2::new(viewport_size.x, 0.0),
     )?;
     let bottom_left_world = raycast_to_ground(
         camera,
+        camera_position,
         global_transform,
         Vec2::new(0.0, viewport_size.y),
     )?;
     let bottom_right_world = raycast_to_ground(
         camera,
+        camera_position,
         global_transform,
         Vec2::new(viewport_size.x, viewport_size.y),
     )?;
 
-    let lod = lod_for_height(global_transform.translation().y).value();
+    let lod = lod_for_height(camera_position.y).value();
     let mut result = Vec::new();
 
     for lod in
@@ -207,38 +235,57 @@ fn visible_tiles(
 pub fn manageable_image_tile_update(
     mut commands: Commands,
     mut cameras: Query<
-        (&Camera, &GlobalTransform),
+        (&ChildOf, &Transform, &Camera, &CellCoord, &GlobalTransform),
         With<scene_camera::ImageTileLoadingCamera>,
     >,
-    mut tiles: Query<(Entity, &ImageTile), With<ManageableImageTile>>,
+    mut tiles: Query<(&ChildOf, Entity, &ImageTile), With<ManageableImageTile>>,
+    grids: Grids,
 ) {
     // Get the required tiles for all cameras.
-    let mut required_tiles: HashSet<mercator::TileCoordinate> = HashSet::new();
-    for (camera, global_transform) in cameras.iter_mut() {
-        let Some(visible) = visible_tiles(camera, global_transform) else {
+    let mut required_tiles: HashSet<(Entity, mercator::TileCoordinate)> =
+        HashSet::new();
+    for (child_of, transform, camera, cell_coord, global_transform) in
+        cameras.iter_mut()
+    {
+        let grid = grids.get(child_of.parent());
+        let world_coord = grid.cell_to_float(cell_coord);
+        let camera_position = world_coord
+            + DVec3::new(
+                transform.translation.x as f64,
+                transform.translation.y as f64,
+                transform.translation.z as f64,
+            );
+
+        let Some(visible) =
+            visible_tiles(camera, &camera_position, global_transform)
+        else {
             continue;
         };
-        required_tiles.extend(visible.into_iter());
+        required_tiles
+            .extend(visible.into_iter().map(|tile| (child_of.parent(), tile)));
     }
 
     // Despawn unrequired tiles.
-    for (entity, tile) in tiles.iter_mut() {
-        if required_tiles.contains(&tile.coordinate) {
+    for (child_of, entity, tile) in tiles.iter_mut() {
+        if required_tiles.contains(&(child_of.parent(), tile.coordinate)) {
             // The tile is required, so we keep it and remove it from the
             // required tiles set.
-            required_tiles.remove(&tile.coordinate);
+            required_tiles.remove(&(child_of.parent(), tile.coordinate));
         } else {
             // The tile is not required, so we despawn it.
             commands.entity(entity).despawn();
         }
     }
 
-    // Spawn required tiles that are not already spawned.
-    for tile in required_tiles.into_iter() {
-        commands.spawn((
-            ImageTileState::Uninitialized,
-            ImageTile { coordinate: tile },
-            ManageableImageTile,
-        ));
+    for (entity, tile) in required_tiles.into_iter() {
+        // Spawn required tiles that are not already spawned.
+        commands.entity(entity).with_children(|parent| {
+            parent.spawn((
+                ImageTileState::Uninitialized,
+                ImageTile { coordinate: tile },
+                ManageableImageTile,
+                CellCoord::ZERO,
+            ));
+        });
     }
 }

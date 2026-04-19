@@ -27,4 +27,5 @@ bevy = { version = "0.18.1", default-features = false, features = [
     "bevy_gizmos",
     "bevy_gizmos_render",
 ] }
+big_space = "0.12.0"
 crossbeam-channel = "0.5.15"

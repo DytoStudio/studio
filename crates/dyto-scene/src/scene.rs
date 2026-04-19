@@ -2,7 +2,7 @@
 
 use bevy::{
     app::PluginGroup,
-    camera::{Camera3d, ClearColor},
+    camera::{Camera3d, ClearColor, visibility::RenderLayers},
     color::Color,
     light::DirectionalLight,
     math::primitives::Cuboid,
@@ -12,6 +12,12 @@ use bevy::{
         App, Assets, Commands, DefaultPlugins, EulerRot, Mesh, Quat, ResMut,
         StandardMaterial, Startup, Transform, Vec3, Window, WindowPlugin,
     },
+    transform::TransformPlugin,
+};
+use big_space::{
+    grid::Grid,
+    plugin::BigSpaceDefaultPlugins,
+    prelude::{BigSpaceCommands, CellCoord, FloatingOrigin},
 };
 use crossbeam_channel::Receiver;
 
@@ -31,14 +37,19 @@ impl Scene {
     pub fn new(canvas_selector: &str) -> Self {
         let mut app = App::new();
 
-        app.add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                canvas: Some(canvas_selector.to_string()),
-                fit_canvas_to_parent: true,
-                ..Default::default()
-            }),
-            ..Default::default()
-        }));
+        app.add_plugins(
+            DefaultPlugins
+                .set(WindowPlugin {
+                    primary_window: Some(Window {
+                        canvas: Some(canvas_selector.to_string()),
+                        fit_canvas_to_parent: true,
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                })
+                .disable::<TransformPlugin>(),
+        );
+        app.add_plugins(BigSpaceDefaultPlugins);
         app.add_plugins(message_bridge::MessageBridgePlugin);
         app.add_plugins(scene_camera::SceneCameraPlugin);
         app.add_plugins(image_tile::ImageTilePlugin);
@@ -78,28 +89,35 @@ impl Scene {
         mut meshes: ResMut<Assets<Mesh>>,
         mut materials: ResMut<Assets<StandardMaterial>>,
     ) {
-        commands.spawn((
-            Camera3d::default(),
-            Transform::from_xyz(0.0, 5.0, 0.0)
-                .looking_at(Vec3::ZERO, Vec3::NEG_Z),
-            scene_camera::MovableCamera::default(),
-            scene_camera::ImageTileLoadingCamera,
-        ));
+        commands.spawn_big_space(Grid::default(), |root| {
+            root.spawn((
+                Camera3d::default(),
+                Transform::from_xyz(0.0, 5.0, 0.0)
+                    .looking_at(Vec3::ZERO, Vec3::NEG_Z),
+                scene_camera::MovableCamera::default(),
+                scene_camera::ImageTileLoadingCamera,
+                CellCoord::ZERO,
+                FloatingOrigin,
+                RenderLayers::from_layers(&[0]),
+            ));
 
-        commands.spawn((
-            DirectionalLight::default(),
-            Transform::from_rotation(Quat::from_euler(
-                EulerRot::XYZ,
-                -0.5,
-                -0.5,
-                0.0,
-            )),
-        ));
+            root.spawn((
+                DirectionalLight::default(),
+                Transform::from_rotation(Quat::from_euler(
+                    EulerRot::XYZ,
+                    -0.5,
+                    -0.5,
+                    0.0,
+                )),
+                CellCoord::ZERO,
+            ));
 
-        commands.spawn((
-            Mesh3d(meshes.add(Cuboid::default())),
-            MeshMaterial3d(materials.add(Color::srgb(0.3, 0.5, 0.8))),
-            Transform::from_xyz(0.0, 0.5, 0.0),
-        ));
+            root.spawn((
+                Mesh3d(meshes.add(Cuboid::default())),
+                MeshMaterial3d(materials.add(Color::srgb(0.3, 0.5, 0.8))),
+                Transform::from_xyz(0.0, 0.5, 0.0),
+                CellCoord::ZERO,
+            ));
+        });
     }
 }

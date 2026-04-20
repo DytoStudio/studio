@@ -3,7 +3,7 @@
 use std::collections::HashSet;
 
 use bevy::{
-    camera::Camera,
+    camera::{Camera, visibility::RenderLayers},
     ecs::{
         component::Component,
         entity::Entity,
@@ -153,7 +153,7 @@ fn visible_tiles(
     camera: &Camera,
     camera_position: &DVec3,
     global_transform: &GlobalTransform,
-) -> Option<Box<[mercator::TileCoordinate]>> {
+) -> Option<(Box<[mercator::TileCoordinate]>, mercator::LevelOfDetail)> {
     let viewport_size = camera.logical_viewport_size()?;
 
     fn raycast_to_ground(
@@ -227,15 +227,23 @@ fn visible_tiles(
         );
     }
 
-    Some(result.into_boxed_slice())
+    Some((result.into_boxed_slice(), mercator::LevelOfDetail::new(lod)))
 }
 
 /// Load and unload image tiles as needed on `Update` based on SceneCamera
 /// position and zoom level.
+#[allow(clippy::type_complexity)]
 pub fn manageable_image_tile_update(
     mut commands: Commands,
     mut cameras: Query<
-        (&ChildOf, &Transform, &Camera, &CellCoord, &GlobalTransform),
+        (
+            &ChildOf,
+            &Transform,
+            &Camera,
+            &CellCoord,
+            &GlobalTransform,
+            &mut RenderLayers,
+        ),
         With<scene_camera::ImageTileLoadingCamera>,
     >,
     mut tiles: Query<(&ChildOf, Entity, &ImageTile), With<ManageableImageTile>>,
@@ -244,8 +252,14 @@ pub fn manageable_image_tile_update(
     // Get the required tiles for all cameras.
     let mut required_tiles: HashSet<(Entity, mercator::TileCoordinate)> =
         HashSet::new();
-    for (child_of, transform, camera, cell_coord, global_transform) in
-        cameras.iter_mut()
+    for (
+        child_of,
+        transform,
+        camera,
+        cell_coord,
+        global_transform,
+        mut render_layers,
+    ) in cameras.iter_mut()
     {
         let grid = grids.get(child_of.parent());
         let world_coord = grid.cell_to_float(cell_coord);
@@ -256,13 +270,17 @@ pub fn manageable_image_tile_update(
                 transform.translation.z as f64,
             );
 
-        let Some(visible) =
+        let Some((visible, display_level_of_detail)) =
             visible_tiles(camera, &camera_position, global_transform)
         else {
             continue;
         };
         required_tiles
             .extend(visible.into_iter().map(|tile| (child_of.parent(), tile)));
+
+        let render_layer_target =
+            [0, display_level_of_detail.value() as usize + 1];
+        *render_layers = RenderLayers::from_layers(&render_layer_target);
     }
 
     // Despawn unrequired tiles.
@@ -285,6 +303,9 @@ pub fn manageable_image_tile_update(
                 ImageTile { coordinate: tile },
                 ManageableImageTile,
                 CellCoord::ZERO,
+                RenderLayers::from_layers(&[tile.level_of_detail().value()
+                    as usize
+                    + 1]),
             ));
         });
     }

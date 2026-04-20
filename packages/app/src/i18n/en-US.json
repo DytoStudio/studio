@@ -1,4 +1,4 @@
 {
     "app.name": "Dyto Studio",
-    "editor.sidepanel.placeholder": "Empty"
+    "editor.sidepanel.tileProvider": "Background Imagery"
 }

@@ -1,4 +1,4 @@
 {
     "app.name": "地图坊",
-    "editor.sidepanel.placeholder": "无"
+    "editor.sidepanel.tileProvider": "背景影像"
 }

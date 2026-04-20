@@ -18,6 +18,37 @@ const TILE_SIZE = 256;
 
 const logger = Logger.new('Editor');
 
+const getQuadKey = (x: number, y: number, lod: number) => {
+    let quadKey = '';
+    for (let i = lod; i > 0; i--) {
+        let digit = 0;
+        const mask = 1 << (i - 1);
+        if ((x & mask) !== 0) {
+            digit += 1;
+        }
+        if ((y & mask) !== 0) {
+            digit += 2;
+        }
+        quadKey += digit.toString();
+    }
+    return quadKey;
+};
+
+const getTileURL = (
+    provider: MapTileProvider,
+    x: number,
+    y: number,
+    lod: number,
+): string => {
+    const quadKey = getQuadKey(x, y, lod);
+    const url = provider.url
+        .replace('{quadKey}', quadKey)
+        .replace('{x}', x.toString())
+        .replace('{y}', y.toString())
+        .replace('{z}', lod.toString());
+    return url;
+};
+
 const loadTileWithURL = async (
     url: string,
 ): Promise<
@@ -74,31 +105,16 @@ export const Editor: Component = () => {
     const [sideAreaWidth, setSideAreaWidth] = createSignal(
         SIDE_AREA_DEFAULT_WIDTH,
     );
-    const [mapTileProvider, _setMapTileProvider] =
-        createSignal<MapTileProvider>(
-            mapTileProviders.providers[mapTileProviders.default],
-        );
-
-    const getQuadKey = (x: number, y: number, lod: number) => {
-        let quadKey = '';
-        for (let i = lod; i > 0; i--) {
-            let digit = 0;
-            const mask = 1 << (i - 1);
-            if ((x & mask) !== 0) {
-                digit += 1;
-            }
-            if ((y & mask) !== 0) {
-                digit += 2;
-            }
-            quadKey += digit.toString();
-        }
-        return quadKey;
-    };
+    const [mapTileProvider, setMapTileProvider] = createSignal<
+        keyof typeof mapTileProviders.providers
+    >(mapTileProviders.default);
 
     return (
         <div class="w-full h-full flex select-none bg-zinc-800">
             <SideArea
                 hidden={sideAreaWidth() < SIDE_AREA_HIDE_WIDTH}
+                mapTileProvider={mapTileProvider()}
+                onMapTileProviderChange={setMapTileProvider}
                 width={Math.max(
                     SIDE_AREA_MIN_WIDTH,
                     Math.min(SIDE_AREA_MAX_WIDTH, sideAreaWidth()),
@@ -130,7 +146,7 @@ export const Editor: Component = () => {
                     </div>
                 ) : null}
                 <div class="absolute bottom-2 right-2 rounded-full bg-zinc-800/50 pointer-events-none text-xs px-2 py-1 backdrop-blur-sm">
-                    {mapTileProvider().attribution}
+                    {mapTileProviders.providers[mapTileProvider()].attribution}
                 </div>
                 <Scene
                     class="w-full h-full outline-none"
@@ -151,22 +167,21 @@ export const Editor: Component = () => {
                                 });
                             }
 
-                            const urlTemplate = mapTileProvider().url;
                             await Promise.all(
                                 request
-                                    .map(({ x, y, lod }) => {
-                                        const quadKey = getQuadKey(x, y, lod);
-                                        const url = urlTemplate.replace(
-                                            '{quadKey}',
-                                            quadKey,
-                                        );
-                                        return {
-                                            tileLOD: lod,
-                                            tileX: x,
-                                            tileY: y,
-                                            url,
-                                        };
-                                    })
+                                    .map(({ x, y, lod }) => ({
+                                        tileLOD: lod,
+                                        tileX: x,
+                                        tileY: y,
+                                        url: getTileURL(
+                                            mapTileProviders.providers[
+                                                mapTileProvider()
+                                            ],
+                                            x,
+                                            y,
+                                            lod,
+                                        ),
+                                    }))
                                     .map(async (tileRequest) => {
                                         const tileData = await loadTileWithURL(
                                             tileRequest.url,
